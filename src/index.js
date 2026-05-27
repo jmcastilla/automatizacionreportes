@@ -1,5 +1,9 @@
 if (!global.Headers) {
+    global.SourceMap = require('node-fetch'); // Carga la librería base por si acaso
     global.Headers = require('node-fetch').Headers;
+}
+if (!global.Blob) {
+    global.Blob = require('node-fetch').Blob;
 }
 
 // Ahora sí continúa tu código normal...
