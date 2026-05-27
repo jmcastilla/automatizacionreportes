@@ -42,6 +42,7 @@ async function ejecutarEnvioDeReportes() {
             WHERE c.ContractID='SERV-00527424'
         `;
         const resultado = await mssql.query(consulta);
+        console.log(resultado);
         const contratos = resultado.recordset;
 
         if (contratos.length === 0) {
@@ -99,5 +100,5 @@ async function ejecutarEnvioDeReportes() {
         await mssql.close();
     }
 }
-
-setInterval(ejecutarEnvioDeReportes, 60 * 60 * 1000);
+ejecutarEnvioDeReportes();
+//setInterval(ejecutarEnvioDeReportes, 60 * 60 * 1000);
