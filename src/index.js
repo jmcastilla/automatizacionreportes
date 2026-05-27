@@ -1,9 +1,15 @@
-if (!global.Headers) {
-    global.SourceMap = require('node-fetch'); // Carga la librería base por si acaso
-    global.Headers = require('node-fetch').Headers;
+const undici = require('undici');
+
+if (!global.fetch) {
+    global.fetch = undici.fetch;
+    global.Headers = undici.Headers;
+    global.Request = undici.Request;
+    global.Response = undici.Response;
+    global.FormData = undici.FormData;
+    global.File = undici.File;
 }
 if (!global.Blob) {
-    global.Blob = require('node-fetch').Blob;
+    global.Blob = undici.Blob;
 }
 
 // Ahora sí continúa tu código normal...
