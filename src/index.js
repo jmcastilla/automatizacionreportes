@@ -1,6 +1,9 @@
-// 1. Cargar las variables de entorno antes que cualquier otra cosa
-require('dotenv').config();
+if (!global.Headers) {
+    global.Headers = require('node-fetch').Headers;
+}
 
+// Ahora sí continúa tu código normal...
+require('dotenv').config();
 const mssql = require('mssql');
 const jwt = require('jsonwebtoken');
 const { MailerSend, EmailParams, Sender, Recipient } = require("mailersend");
