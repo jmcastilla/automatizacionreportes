@@ -15,7 +15,7 @@ const dispatcher = nodemailer.createTransport({
     auth: {
         // En MailerSend, tu usuario SMTP suele ser una dirección especial o tu usuario de cuenta
         // Revisa en tu panel de MailerSend -> Domains -> SMTP para confirmar tu usuario exacto.
-        user: "MS_xxxxxx@tu-dominio-verificado.com",
+        user: "alertas@offertapp.co",
         pass: process.env.MAILERSEND_API_KEY, // Tu API Key sirve directamente como contraseña SMTP
     },
 });
@@ -42,9 +42,9 @@ async function ejecutarEnvioDeReportes() {
         await mssql.connect(sqlConfig);
 
         const consulta = `
-            SELECT c.ContractID, c.CorreoCliente, c.PlacaTruck, c.NombreConductor
+            SELECT c.ContractID, 'jmcastilla91@gmail.com' as CorreoCliente, c.PlacaTruck, c.NombreConductor
             FROM LokcontractID as c
-            WHERE c.Active = 1 AND c.ReporteAutomatico = 1
+            WHERE c.ContractID = 'SERV-00527424'
         `;
         const resultado = await mssql.query(consulta);
         const contratos = resultado.recordset;
