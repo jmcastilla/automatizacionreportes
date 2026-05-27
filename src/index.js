@@ -15,7 +15,7 @@ const dispatcher = nodemailer.createTransport({
     auth: {
         // En MailerSend, tu usuario SMTP suele ser una dirección especial o tu usuario de cuenta
         // Revisa en tu panel de MailerSend -> Domains -> SMTP para confirmar tu usuario exacto.
-        user: "alertas@offertapp.co",
+        user: "MS_EW3h00@offertapp.co",
         pass: process.env.MAILERSEND_API_KEY, // Tu API Key sirve directamente como contraseña SMTP
     },
 });
