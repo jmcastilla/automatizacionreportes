@@ -3,9 +3,15 @@ const express = require('express');
 const mssql = require('mssql');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const axios = require('axios'); // Requerido para el endpoint de Visual Logistic
 
 const app = express();
 const PORT = process.env.PORT || 3005;
+
+// Configuración simulada u obtenida de variables para Visual Logistic
+const Configuracion = {
+    URL_VISUALLOGISTIC: process.env.URL_VISUALLOGISTIC || "visuallogisticsapp" // Ajusta según tu configuración
+};
 
 // =========================================================================
 // MIDDLEWARES (Configuraciones de la App)
@@ -41,13 +47,44 @@ const poolPromise = new mssql.ConnectionPool(sqlConfig)
     });
 
 // =========================================================================
-// ENDPOINT: CONSULTAR INFORMACIÓN DE UN CONTRATO DESDE EL TOKEN
+// MIDDLEWARE DE SEGURIDAD: VERIFICACIÓN DEL TOKEN DE 24 HORAS (HEADERS)
+// =========================================================================
+const verificarToken24h = (req, res, next) => {
+    try {
+        let token = req.headers.authorization;
+
+        if (!token) {
+            return res.json({ success: false, message: 'Token is missing' });
+        }
+
+        // Extraer el token quitando la palabra 'Bearer '
+        token = token.split(' ')[1];
+
+        // Validamos usando el secreto del archivo .env
+        jwt.verify(token, process.env.SEED_SECRET, (err, decoded) => {
+            if (err || decoded.tipo !== 'link_24h') {
+                return res.json({ success: false, message: 'Failed to authenticate token' });
+            }
+
+            // BLINDAJE DE SEGURIDAD: Extraemos el contrato real guardado matemáticamente en el token.
+            // De esta forma, el usuario en el frontend NO puede alterar el número de contrato en el body.
+            req.contratoIdVerificado = decoded.contractId;
+
+            next(); // El token es correcto, pasamos al endpoint original
+        });
+
+    } catch (error) {
+        return res.json({ success: false, message: 'Internal auth error' });
+    }
+};
+
+// =========================================================================
+// ENDPOINT ORIGINAL: CONSULTAR INFORMACIÓN INICIAL DESDE LA URL (BODY)
 // =========================================================================
 app.post('/api/reportes/consultar-token', async (req, res) => {
     try {
         const { publicToken } = req.body;
 
-        // 1. Validar que el token exista en la petición
         if (!publicToken) {
             return res.status(400).json({
                 success: false,
@@ -55,19 +92,16 @@ app.post('/api/reportes/consultar-token', async (req, res) => {
             });
         }
 
-        // 2. Verificar y decodificar el token criptográficamente
         let datosToken;
         try {
             datosToken = jwt.verify(publicToken, process.env.SEED_SECRET);
         } catch (jwtError) {
-            // Si pasaron las 24 horas o el token fue alterado, entra aquí directamente
             return res.status(403).json({
                 success: false,
                 message: 'El enlace ha expirado (límite de 24 horas superado) o es inválido.'
             });
         }
 
-        // Validar la estructura interna de nuestro token
         if (datosToken.tipo !== 'link_24h' || !datosToken.contractId) {
             return res.status(403).json({
                 success: false,
@@ -76,16 +110,12 @@ app.post('/api/reportes/consultar-token', async (req, res) => {
         }
 
         const idContratoExtraido = datosToken.contractId;
-        console.log(`🔓 Acceso autorizado para el contrato: ${idContratoExtraido}`);
+        console.log(`🔓 Acceso inicial autorizado para el contrato: ${idContratoExtraido}`);
 
-        // 3. Esperar la conexión de la base de datos y realizar la consulta
         const pool = await poolPromise;
         const request = pool.request();
-
-        // Evitamos inyección SQL mapeando el parámetro de forma segura
         request.input('contractId', mssql.VarChar, idContratoExtraido);
 
-        // Consulta de telemetría (Ajusta los nombres de tus campos si varían)
         const consultaSql = `
             SELECT c.ContractID, c.PlacaTruck, c.NombreConductor, c.Active
             FROM LokcontractID as c
@@ -103,7 +133,6 @@ app.post('/api/reportes/consultar-token', async (req, res) => {
 
         const datosContrato = resultadoDb.recordset[0];
 
-        // 4. Responder con éxito al Frontend
         res.json({
             success: true,
             message: 'Acceso concedido exitosamente.',
@@ -112,7 +141,6 @@ app.post('/api/reportes/consultar-token', async (req, res) => {
                 placa: datosContrato.PlacaTruck,
                 conductor: datosContrato.NombreConductor,
                 activo: datosContrato.Active
-                // Aquí puedes mapear latitud, longitud, velocidad si tu tabla los maneja
             }
         });
 
@@ -126,7 +154,131 @@ app.post('/api/reportes/consultar-token', async (req, res) => {
 });
 
 // =========================================================================
-// ENZENDER EL SERVIDOR
+// NUEVOS ENDPOINTS PROTEGIDOS POR EL MIDDLEWARE (TOKEN EN HEADERS)
+// =========================================================================
+
+// 1. OBTENER FOTOS DEL CONTRATO
+app.post('/api/reportes/fotos-contrato', verificarToken24h, async (req, res) => {
+    try {
+        const contrato = req.contratoIdVerificado; // Tomado del token verificado de forma segura
+        let tipo = req.body.tipo || ".jpg";
+        tipo = (tipo === "vid") ? ".mp4" : ".jpg";
+
+        const pool = await poolPromise;
+        const request = pool.request();
+        request.input('contrato', mssql.VarChar, contrato);
+
+        const consulta = "SELECT * from dbo.Photos(@contrato)";
+        let resultado = await request.query(consulta);
+
+        let archivos = resultado.recordsets[0].filter(item => item.photo.includes(tipo));
+        return res.json({ success: true, data: archivos });
+
+    } catch (err) {
+        console.error('❌ Error en fotos-contrato:', err.message);
+        return res.json({ success: false });
+    }
+});
+
+// 2. OBTENER REPORTES DE TRÁFICO
+app.post('/api/reportes/reportes-trafico', verificarToken24h, async (req, res) => {
+    try {
+        const contrato = req.contratoIdVerificado;
+
+        const pool = await poolPromise;
+        const request = pool.request();
+        request.input('contrato', mssql.VarChar, contrato);
+
+        const consulta = `
+            SELECT r.IdReport, r.XTime, ta.TipoAccion, tr.TipoReporte, r.Ubicacion, r.Nota, r.XUser
+            FROM LokReport as r
+            INNER JOIN LokTipoAccion as ta ON ta.IdTipoAccion = r.FKLokTipoAccion
+            INNER JOIN ICTipoReporte as tr ON tr.idTipoReporte = r.FKICTipoReporte
+            WHERE r.FKLokContractID = @contrato
+            ORDER BY r.XTime
+        `;
+
+        let resultado = await request.query(consulta);
+        return res.json({ success: true, data: resultado.recordsets[0] });
+
+    } catch (err) {
+        console.error('❌ Error en reportes-trafico:', err.message);
+        return res.json({ success: false });
+    }
+});
+
+// 3. COMPARACIONES DE LOGÍSTICA VISUAL (API EXTERNA)
+app.post('/api/reportes/visual-logistic', verificarToken24h, async (req, res) => {
+    try {
+        const contrato = req.contratoIdVerificado;
+        const varEndpoint = `https://${Configuracion.URL_VISUALLOGISTIC}.azurewebsites.net/get-contract-comparisons/${contrato}`;
+
+        try {
+            const response = await axios.get(varEndpoint, {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            });
+            return res.json({ success: true, info: response.data });
+        } catch (e) {
+            return res.json({ success: false, msg: "contrato no existe" });
+        }
+
+    } catch (err) {
+        console.error('❌ Error en visual-logistic:', err.message);
+        return res.json({ success: false });
+    }
+});
+
+// 4. OBTENER INFORMACIÓN DE ESTADO DEL CONTRATO
+app.post('/api/reportes/info-contrato', verificarToken24h, async (req, res) => {
+    try {
+        const contrato = req.contratoIdVerificado;
+
+        const pool = await poolPromise;
+        const request = pool.request();
+        request.input('contrato', mssql.VarChar, contrato);
+
+        let consulta = `
+            SELECT FKLokDeviceId as Dispositivo,
+                   InicioServicio AS ComienzoServicio,
+                   CASE WHEN ISNULL(FechaHoraFin, DATEADD(hh,2,GETDATE())) >= '2016-05-01 00:00:00' THEN 'NO' ELSE 'SI' END AS backup_,
+                   ISNULL(FechaHoraFin, DATEADD(hh,2,GETDATE())) AS FinalServicio,
+                   LokContractId.Active as isActive,
+                   FKLokTipoEquipo
+            FROM LokContractID
+            LEFT JOIN LokDeviceID ON FKLokDeviceID = DeviceID
+            WHERE ContractID = @contrato
+        `;
+
+        let resultado = await request.query(consulta);
+        return res.json({ success: true, data: resultado.recordsets[0] });
+
+    } catch (err) {
+        console.error('❌ Error en info-contrato:', err.message);
+        return res.json({ success: false });
+    }
+});
+
+// 5. GEOLOCALIZACIÓN DE FOTOS (DISPOSITIVOS VALITRONICS)
+app.post('/api/reportes/device-valitronics', verificarToken24h, async (req, res) => {
+    try {
+        const contrato = req.contratoIdVerificado;
+
+        const pool = await poolPromise;
+        const request = pool.request();
+        request.input('contrato', mssql.VarChar, contrato);
+
+        const consulta = "SELECT Latitud, Longitud from dbo.Photos(@contrato) WHERE Latitud <> 0";
+        let resultado = await request.query(consulta);
+        return res.json({ success: true, data: resultado.recordsets[0] });
+
+    } catch (err) {
+        console.error('❌ Error en device-valitronics:', err.message);
+        return res.json({ success: false });
+    }
+});
+
+// =========================================================================
+// ENCENDER EL SERVIDOR
 // =========================================================================
 app.listen(PORT, () => {
     console.log(`🚀 Servidor de API corriendo en: http://localhost:${PORT}`);
