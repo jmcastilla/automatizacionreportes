@@ -17,7 +17,7 @@ const dispatcher = nodemailer.createTransport({
         pass: "mssp.P8219Fo.jpzkmgqrpz24059v.r7DhJst",
     },
     tls: {
-        rejectUnauthorized: false // Evita problemas con nombres de servidor basados en IP
+        rejectUnauthorized: false
     }
 });
 
@@ -34,20 +34,47 @@ const sqlConfig = {
 };
 
 // =========================================================================
-// PROCESO PRINCIPAL DE ENVÍO (CONSOLIDADO EN TABLA)
+// PROCESO PRINCIPAL DE ENVÍO AGALOPADO POR EMPRESA
 // =========================================================================
 async function ejecutarEnvioDeReportes() {
-    console.log('=== [SMTP Mode] Iniciando recorrido de contratos ===');
+    console.log('=== [SMTP Mode] Iniciando recorrido de contratos por empresa ===');
 
     try {
         await mssql.connect(sqlConfig);
 
-        // Tu consulta de prueba con múltiples contratos
+        // Tu consulta SQL avanzada
         const consulta = `
-            SELECT c.ContractID, 'jmcastilla91@gmail.com' as CorreoCliente, c.PlacaTruck, c.NombreConductor
-            FROM LokcontractID as c
-            WHERE c.ContractID IN ('SERV-00527424','SERV-00527363')
+        SELECT
+            con.ContractID AS [Contrato],
+            con.PlacaTruck AS [Placa],
+            con.ContainerNum AS [Contenedor],
+            DATEADD(HOUR, -5, dev.ICTime) AS [Ultimo Reporte],
+            con.LastPositionGps AS [Ultima Posicion],
+            con.LastReportUbica AS [Ultima Validacion],
+            con.LastReportNota AS [Observacion],
+            (CASE dev.Locked WHEN 1 THEN 'Cerrado' ELSE 'Abierto' END) AS [EstadoCandado],
+            con.FKICEmpresa,
+            STUFF((
+                SELECT ';' + cnt.Mail
+                FROM dbo.LokContactos cnt
+                WHERE cnt.FKICEmpresa = con.FKICEmpresa
+                  AND cnt.Autoreporte = 1
+                FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS CorreosContactos
+        FROM
+            dbo.LokContractID con INNER JOIN LokDeviceID dev
+            ON con.FKLokDeviceID = dev.DeviceID
+        WHERE
+            con.Active = 1
+            AND EXISTS (
+                SELECT 1
+                FROM dbo.LokContactos cnt
+                WHERE cnt.FKICEmpresa = con.FKICEmpresa
+                  AND cnt.Autoreporte = 1
+                  AND cnt.Mail IS NOT NULL
+                  AND cnt.Mail <> ''
+            );
         `;
+
         const resultado = await mssql.query(consulta);
         const contratos = resultado.recordset;
 
@@ -56,73 +83,106 @@ async function ejecutarEnvioDeReportes() {
             return;
         }
 
-        console.log(`Consolidando ${contratos.length} contratos en un único correo...`);
+        // =========================================================================
+        // PASO 1: AGRUPAR LOS CONTRATOS POR EMPRESA (FKICEmpresa)
+        // =========================================================================
+        const empresasAgrupadas = {};
 
-        // Tomamos el correo del primer registro para saber a quién enviarlo
-        const correoDestinatario = contratos[0].CorreoCliente;
+        contratos.forEach(contrato => {
+            const idEmpresa = contrato.FKICEmpresa;
 
-        // 1. Iniciamos la construcción de las filas de la tabla HTML
-        let filasTablaHtml = '';
+            // Si es la primera vez que vemos esta empresa, inicializamos su espacio
+            if (!empresasAgrupadas[idEmpresa]) {
+                empresasAgrupadas[idEmpresa] = {
+                    listaContratos: [],
+                    // Tomamos la cadena de correos (reemplazamos los puntos y comas por comas si los hay)
+                    correos: contrato.CorreosContactos ? contrato.CorreosContactos.replace(/;/g, ', ') : null
+                };
+            }
 
-        for (const contrato of contratos) {
-            // Generamos el token de 24 horas independiente para cada contrato
-            const payload = { contractId: contrato.ContractID, tipo: 'link_24h' };
-            const token24h = jwt.sign(payload, SEED_SECRET, { expiresIn: '24h' });
-            const urlConToken = `https://cargotronics.com/visualizar-reporte?publicToken=${token24h}`;
-
-            // Añadimos una fila (<tr>) por cada contrato a la tabla
-            filasTablaHtml += `
-                <tr style="border-bottom: 1px solid #eef0f3;">
-                    <td style="padding: 12px; font-size: 14px; color: #333333;"><strong>${contrato.ContractID}</strong></td>
-                    <td style="padding: 12px; font-size: 14px; color: #555555;">${contrato.PlacaTruck || 'N/D'}</td>
-                    <td style="padding: 12px; font-size: 14px; color: #555555;">${contrato.NombreConductor || 'N/D'}</td>
-                    <td style="padding: 12px; text-align: center;">
-                        <a href="${urlConToken}" target="_blank" style="background-color: #003366; color: #ffffff; padding: 6px 12px; text-decoration: none; font-weight: bold; border-radius: 4px; font-size: 12px; display: inline-block;">Ver Reporte</a>
-                    </td>
-                </tr>
-            `;
-        }
-
-        // 2. Armamos la estructura completa del cuerpo del correo inyectando las filas creadas
-        const htmlCorreoCompleto = `
-            <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; border: 1px solid #eef0f3; padding: 25px; border-radius: 8px;">
-                <h2 style="color: #003366; text-align: center; margin-bottom: 10px;">Consolidado de Monitoreo Disponible</h2>
-                <p>Estimado Cliente,</p>
-                <p>A continuación, se detalla el listado de los vehículos y contratos que actualmente cuentan con reportes de seguimiento activos en tiempo real:</p>
-
-                <table style="width: 100%; border-collapse: collapse; margin: 20px 0; text-align: left;">
-                    <thead>
-                        <tr style="background-color: #003366; color: #ffffff;">
-                            <th style="padding: 12px; font-size: 14px;">Contrato</th>
-                            <th style="padding: 12px; font-size: 14px;">Placa</th>
-                            <th style="padding: 12px; font-size: 14px;">Conductor</th>
-                            <th style="padding: 12px; font-size: 14px; text-align: center;">Acceso Directo</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${filasTablaHtml}
-                    </tbody>
-                </table>
-
-                <p style="background-color: #f4f6f9; padding: 12px; border-radius: 4px; font-size: 13px; border-left: 4px solid #003366; margin-top: 25px;">
-                    ⚠️ <strong>Nota de seguridad:</strong> Cada uno de los enlaces de acceso generados en la tabla es confidencial, individual y cuenta con una vigencia estricta de <strong>24 horas</strong> a partir de la emisión de este mensaje.
-                </p>
-
-                <hr style="border: 0; border-top: 1px solid #eef0f3; margin: 25px 0;">
-                <p style="font-size: 11px; color: #9aa0ac; text-align: center; margin: 0;">Plataforma automatizada de Cargotronics. Por favor no responda a este correo.</p>
-            </div>
-        `;
-
-        // 3. ENVIAMOS EL ÚNICO CORREO CON LA TABLA ADENTRO
-        await dispatcher.sendMail({
-            // Recuerda configurar el sender email de tu dominio verificado en el .env (alertas@offertapp.co)
-            from: `"${process.env.MAILERSEND_SENDER_NAME}" <${process.env.MAILERSEND_SENDER_EMAIL}>`,
-            to: correoDestinatario,
-            subject: `📊 Reporte Consolidado de Monitoreo - Vehículos Activos`,
-            html: htmlCorreoCompleto
+            // Agregamos el contrato actual al lote de esta empresa
+            empresasAgrupadas[idEmpresa].listaContratos.push(contrato);
         });
 
-        console.log(`\n✅ Email consolidado enviado con éxito a: ${correoDestinatario} con ${contratos.length} contratos.`);
+        console.log(`Se detectaron ${Object.keys(empresasAgrupadas).length} empresas distintas con reportes pendientes.`);
+
+        // =========================================================================
+        // PASO 2: RECORRER CADA EMPRESA Y ENVIAR SU CORREO CORRESPONDIENTE
+        // =========================================================================
+        for (const idEmpresa of Object.keys(empresasAgrupadas)) {
+            const datosEmpresa = empresasAgrupadas[idEmpresa];
+
+            if (!datosEmpresa.correos) {
+                console.log(`⚠️ Empresa ID [${idEmpresa}] no tiene correos válidos configurados. Saltando...`);
+                continue;
+            }
+
+            // Iniciamos la tabla limpia para esta empresa específica
+            let filasTablaHtml = '';
+
+            for (const contrato of datosEmpresa.listaContratos) {
+                // Generamos el token criptográfico individual de 24 horas por contrato
+                const payload = { contractId: contrato.Contrato, tipo: 'link_24h' };
+                const token24h = jwt.sign(payload, SEED_SECRET, { expiresIn: '24h' });
+                const urlConToken = `https://cargotronics.com/visualizar-reporte?publicToken=${token24h}`;
+
+                // Construimos la fila agregando las nuevas columnas de tu consulta SQL
+                filasTablaHtml += `
+                    <tr style="border-bottom: 1px solid #eef0f3;">
+                        <td style="padding: 12px; font-size: 13px; color: #333333;"><strong>${contrato.Contrato}</strong></td>
+                        <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Placa || 'N/D'}</td>
+                        <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Contenedor || 'N/D'}</td>
+                        <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.EstadoCandado || 'N/D'}</td>
+                        <td style="padding: 12px; font-size: 13px; color: #555555; max-width: 150px; word-break: break-all;">${contrato['Ultima Validacion'] || 'N/D'}</td>
+                        <td style="padding: 12px; text-align: center;">
+                            <a href="${urlConToken}" target="_blank" style="background-color: #003366; color: #ffffff; padding: 6px 12px; text-decoration: none; font-weight: bold; border-radius: 4px; font-size: 11px; display: inline-block;">Ver Mapa</a>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            // Armamos el cuerpo del correo con el diseño responsivo e inline
+            const htmlCorreoCompleto = `
+                <div style="font-family: Arial, sans-serif; max-width: 850px; margin: 0 auto; border: 1px solid #eef0f3; padding: 25px; border-radius: 8px;">
+                    <h2 style="color: #003366; text-align: center; margin-bottom: 10px;">Consolidado de Monitoreo Disponible</h2>
+                    <p>Estimado Cliente,</p>
+                    <p>A continuación, se detalla el listado actualizado de los contenedores y unidades bajo su operación que cuentan con seguimiento logístico activo en tiempo real:</p>
+
+                    <table style="width: 100%; border-collapse: collapse; margin: 20px 0; text-align: left;">
+                        <thead>
+                            <tr style="background-color: #003366; color: #ffffff;">
+                                <th style="padding: 12px; font-size: 13px;">Contrato</th>
+                                <th style="padding: 12px; font-size: 13px;">Placa</th>
+                                <th style="padding: 12px; font-size: 13px;">Contenedor</th>
+                                <th style="padding: 12px; font-size: 13px;">Candado</th>
+                                <th style="padding: 12px; font-size: 13px;">Última Validación</th>
+                                <th style="padding: 12px; font-size: 13px; text-align: center;">Acceso Directo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filasTablaHtml}
+                        </tbody>
+                    </table>
+
+                    <p style="background-color: #f4f6f9; padding: 12px; border-radius: 4px; font-size: 13px; border-left: 4px solid #003366; margin-top: 25px;">
+                        ⚠️ <strong>Nota de seguridad:</strong> Cada uno de los enlaces de acceso generados en la tabla es estrictamente confidencial, individual y cuenta con una vigencia de seguridad de <strong>24 horas</strong>.
+                    </p>
+
+                    <hr style="border: 0; border-top: 1px solid #eef0f3; margin: 25px 0;">
+                    <p style="font-size: 11px; color: #9aa0ac; text-align: center; margin: 0;">Plataforma automatizada de Cargotronics. Por favor no responda a este correo.</p>
+                </div>
+            `;
+
+            // Enviar el correo al grupo de destinatarios de esta empresa en específico
+            await dispatcher.sendMail({
+                from: `"${process.env.MAILERSEND_SENDER_NAME}" <${process.env.MAILERSEND_SENDER_EMAIL}>`,
+                to: `jmcastilla91@gmail.com`, //datosEmpresa.correos, // Nodemailer acepta múltiples correos separados por coma "email1@tld.com, email2@tld.com"
+                subject: `📊 Reporte Consolidado de Monitoreo - Unidades Activas`,
+                html: htmlCorreoCompleto
+            });
+
+            console.log(`✅ Email corporativo enviado con éxito a la empresa [ID: ${idEmpresa}] -> Destinatarios: (${datosEmpresa.correos})`);
+        }
 
     } catch (errorGlobal) {
         console.error('💥 Error crítico en la ejecución del script:', errorGlobal.message);
