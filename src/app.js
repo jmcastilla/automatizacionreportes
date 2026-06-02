@@ -178,8 +178,6 @@ app.post('/api/reportes/consultar-token', async (req, res) => {
 app.post('/api/reportes/fotos-contrato', verificarToken24h, async (req, res) => {
     try {
         const contrato = req.contratoIdVerificado; // Tomado del token verificado de forma segura
-        let tipo = req.body.tipo || ".jpg";
-        tipo = (tipo === "vid") ? ".mp4" : ".jpg";
 
         const pool = await poolPromise;
         const request = pool.request();
@@ -187,9 +185,7 @@ app.post('/api/reportes/fotos-contrato', verificarToken24h, async (req, res) => 
 
         const consulta = "SELECT * from dbo.Photos(@contrato)";
         let resultado = await request.query(consulta);
-
-        let archivos = resultado.recordsets[0].filter(item => item.photo.includes(tipo));
-        return res.json({ success: true, data: archivos });
+        return res.json({ success: true, data: resultado });
 
     } catch (err) {
         console.error('❌ Error en fotos-contrato:', err.message);
