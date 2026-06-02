@@ -16,7 +16,22 @@ const Configuracion = {
 // =========================================================================
 // MIDDLEWARES (Configuraciones de la App)
 // =========================================================================
-app.use(cors()); // Permite que tu frontend consulte la API desde otro dominio
+const whitelist = ['http://localhost:3000', 'https://cargotronics.com'];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // Permitir peticiones sin origen (como apps móviles, Postman o herramientas del sistema)
+        if (!origin) return callback(null, true);
+
+        if (whitelist.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('No permitido por CORS'));
+        }
+    },
+    credentials: true // <-- Esto soluciona el error permitiendo el modo 'include'
+}));
+
 app.use(express.json()); // Permite que la API reciba datos en formato JSON
 
 // =========================================================================
