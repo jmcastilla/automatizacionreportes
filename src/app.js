@@ -86,7 +86,7 @@ const verificarToken24h = (req, res, next) => {
             // BLINDAJE DE SEGURIDAD: Extraemos el contrato real guardado matemáticamente en el token.
             // De esta forma, el usuario en el frontend NO puede alterar el número de contrato en el body.
             req.contratoIdVerificado = decoded.contractId;
-
+            req.tokenDecoded = decoded;
             next(); // El token es correcto, pasamos al endpoint original
         });
 
@@ -287,6 +287,70 @@ app.post('/api/reportes/device-valitronics', verificarToken24h, async (req, res)
     } catch (err) {
         console.error('❌ Error en device-valitronics:', err.message);
         return res.json({ success: false });
+    }
+});
+
+// =========================================================================
+// 6. NUEVO ENDPOINT: OBTENER REPORTES DE DISPOSITIVOS POR STORED PROCEDURE
+// =========================================================================
+app.post('/api/reportes/reportes-device', verificarToken24h, async (req, res) => {
+    try {
+        // Obtenemos los datos decodificados desde el middleware de forma segura
+        const decoded = req.tokenDecoded;
+
+        // Validaciones preventivas por si el token de MailerSend no incluyó desfases horarios originalmente
+        const diffHorario = decoded.diffhorario || 0;
+        const diffUTC = decoded.diffUTC || 0;
+
+        let m = moment();
+        m.add(diffHorario, 'minutes');
+
+        // Configuración de las variables para el SP
+        let fechainicio = req.body.fechainicio;
+        let fechafin = m.format('YYYY-MM-DD HH:mm:ss');
+        let device = req.body.device;
+        let utcMinutos = diffUTC;
+        let allreport = req.body.allreport;
+
+        // Si mandan tipo == 0, sobreescribimos la fecha de fin por la que mande el cliente
+        if (req.body.tipo == 0) {
+            fechafin = req.body.fechafin;
+        }
+
+        // Selección dinámica del Store Procedure en base al tipo de equipo
+        let procedure = "SelectJ701TrackMsg2";
+        if (req.body.tipoequipo == 1) {
+            procedure = "SelectWSLoksysMsg";
+        } else if (req.body.tipoequipo == 2) {
+            procedure = "SelectWLMsg";
+        } else if (req.body.tipoequipo == 3) {
+            procedure = "SelectEnvotechMsg";
+        } else if (req.body.tipoequipo == 6) {
+            procedure = "SelectCellTrackMsg";
+        } else if (req.body.tipoequipo == 7) {
+            procedure = "SelectNuevoMsg";
+        } else if (req.body.tipoequipo == 10) {
+            procedure = "SelectJT707TrackMsg_prueba";
+        }
+
+        // Ejecución segura del SP usando parámetros tipados de mssql
+        const pool = await poolPromise;
+        const request = pool.request();
+
+        request.input('fechainicio', mssql.VarChar, fechainicio);
+        request.input('fechafin', mssql.VarChar, fechafin);
+        request.input('device', mssql.VarChar, device);
+        request.input('utcMinutos', mssql.Int, utcMinutos);
+        request.input('allreport', mssql.Int, allreport);
+
+        // Disparamos el Stored Procedure mapeado dinámicamente
+        let resultado = await request.execute(procedure);
+
+        res.json({ success: true, data: resultado.recordsets[0] });
+
+    } catch (err) {
+        console.error('❌ Error en reportes-device:', err.message);
+        res.json({ success: false });
     }
 });
 
