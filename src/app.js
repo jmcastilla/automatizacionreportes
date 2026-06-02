@@ -329,7 +329,7 @@ app.post('/api/reportes/reportes-device', verificarToken24h, async (req, res) =>
 
         let m = moment();
         m.add(diffHorario, 'minutes');
-
+        console.log(req.body);
         // Configuración de las variables para el SP
         let fechainicio = req.body.fechainicio;
         let fechafin = m.format('YYYY-MM-DD HH:mm:ss');
