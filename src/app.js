@@ -329,7 +329,7 @@ app.post('/api/reportes/reportes-device', verificarToken24h, async (req, res) =>
 
         let m = moment();
         m.add(diffHorario, 'minutes');
-        console.log(req.body);
+
         // Configuración de las variables para el SP
         let fechainicio = req.body.fechainicio;
         let fechafin = m.format('YYYY-MM-DD HH:mm:ss');
@@ -367,7 +367,16 @@ app.post('/api/reportes/reportes-device', verificarToken24h, async (req, res) =>
         request.input('device', mssql.VarChar, device);
         request.input('utcMinutos', mssql.Int, utcMinutos);
         request.input('allreport', mssql.Int, allreport);
-
+        console.log('=== [DEBUG] Parámetros que se enviarán al SP ===');
+        console.table({
+            "Stored Procedure": procedure,
+            "fechainicio": fechainicio,
+            "fechafin": fechafin,
+            "device": device,
+            "utcMinutos": utcMinutos,
+            "allreport": allreport
+        });
+        console.log('================================================');
         // Disparamos el Stored Procedure mapeado dinámicamente
         let resultado = await request.execute(procedure);
 
