@@ -1,4 +1,6 @@
-
+const path = require('path');
+// Subimos un nivel (../) porque este archivo está dentro de la carpeta 'src'
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const express = require('express');
 const mssql = require('mssql');
 const jwt = require('jsonwebtoken');
