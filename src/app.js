@@ -6,7 +6,7 @@ const mssql = require('mssql');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const axios = require('axios'); // Requerido para el endpoint de Visual Logistic
-
+const moment = require('moment');
 const app = express();
 const PORT = process.env.PORT || 3005;
 
@@ -299,8 +299,8 @@ app.post('/api/reportes/reportes-device', verificarToken24h, async (req, res) =>
         const decoded = req.tokenDecoded;
 
         // Validaciones preventivas por si el token de MailerSend no incluyó desfases horarios originalmente
-        const diffHorario = decoded.diffhorario || 0;
-        const diffUTC = decoded.diffUTC || 0;
+        const diffHorario = 0;
+        const diffUTC = 300;
 
         let m = moment();
         m.add(diffHorario, 'minutes');
