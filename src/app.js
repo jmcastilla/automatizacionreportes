@@ -318,7 +318,7 @@ app.post('/api/reportes/reportes-device', verificarToken24h, async (req, res) =>
         }
 
         // Selección dinámica del Store Procedure en base al tipo de equipo
-        let procedure = "SelectJ701TrackMsg2";
+        let procedure = "SelectJ701TrackMsgSimple";
         if (req.body.tipoequipo == 1) {
             procedure = "SelectWSLoksysMsg";
         } else if (req.body.tipoequipo == 2) {
@@ -330,7 +330,7 @@ app.post('/api/reportes/reportes-device', verificarToken24h, async (req, res) =>
         } else if (req.body.tipoequipo == 7) {
             procedure = "SelectNuevoMsg";
         } else if (req.body.tipoequipo == 10) {
-            procedure = "SelectJT707TrackMsg_prueba";
+            procedure = "SelectJT707TrackMsgSimple";
         }
 
         // Ejecución segura del SP usando parámetros tipados de mssql
