@@ -335,7 +335,6 @@ app.post('/api/reportes/reportes-device', verificarToken24h, async (req, res) =>
         let fechafin = m.format('YYYY-MM-DD HH:mm:ss');
         let device = req.body.device;
         let utcMinutos = diffUTC;
-        let allreport = req.body.allreport;
 
         // Si mandan tipo == 0, sobreescribimos la fecha de fin por la que mande el cliente
         if (req.body.tipo == 0) {
@@ -366,15 +365,13 @@ app.post('/api/reportes/reportes-device', verificarToken24h, async (req, res) =>
         request.input('fechafin', mssql.VarChar, fechafin);
         request.input('device', mssql.VarChar, device);
         request.input('utcMinutos', mssql.Int, utcMinutos);
-        request.input('allreport', mssql.Int, allreport);
         console.log('=== [DEBUG] Parámetros que se enviarán al SP ===');
         console.table({
             "Stored Procedure": procedure,
             "fechainicio": fechainicio,
             "fechafin": fechafin,
             "device": device,
-            "utcMinutos": utcMinutos,
-            "allreport": allreport
+            "utcMinutos": utcMinutos
         });
         console.log('================================================');
         // Disparamos el Stored Procedure mapeado dinámicamente
