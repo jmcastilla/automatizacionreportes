@@ -63,6 +63,31 @@ const poolPromise = new mssql.ConnectionPool(sqlConfig)
         process.exit(1);
     });
 
+
+const sqlConfig2 = {
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE_REP,
+    server: process.env.DB_SERVER,
+    pool: { max: 10, min: 0, idleTimeoutMillis: 30000 },
+    options: {
+        encrypt: process.env.DB_ENCRYPT === 'true',
+        trustServerCertificate: true // Crucial para conexiones de desarrollo/IPs
+    }
+};
+
+// Crear un pool global para reutilizar la conexión en toda la app
+const poolPromise2 = new mssql.ConnectionPool(sqlConfig2)
+    .connect()
+    .then(pool => {
+        console.log('✅ Conexión exitosa con SQL Server');
+        return pool;
+    })
+    .catch(err => {
+        console.error('💥 Error conectando a SQL Server:', err.message);
+        process.exit(1);
+    });
+
 // =========================================================================
 // MIDDLEWARE DE SEGURIDAD: VERIFICACIÓN DEL TOKEN DE 24 HORAS (HEADERS)
 // =========================================================================
@@ -334,7 +359,7 @@ app.post('/api/reportes/reportes-device', verificarToken24h, async (req, res) =>
         }
 
         // Ejecución segura del SP usando parámetros tipados de mssql
-        const pool = await poolPromise;
+        const pool = await poolPromise2;
         const request = pool.request();
 
         request.input('fechainicio', mssql.VarChar, fechainicio);
