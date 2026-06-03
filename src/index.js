@@ -126,7 +126,7 @@ async function ejecutarEnvioDeReportes() {
                 // Generamos el token criptográfico individual de 24 horas por contrato
                 const payload = { contractId: contrato.Contrato, tipo: 'link_24h' };
                 const token24h = jwt.sign(payload, SEED_SECRET, { expiresIn: '24h' });
-                const urlConToken = `https://cargotronics.com/visualizar-reporte?publicToken=${token24h}`;
+                const urlConToken = `https://cargotronics.com/reportes-publicos?publicToken=${token24h}`;
 
                 // Construimos la fila agregando las nuevas columnas de tu consulta SQL
                 filasTablaHtml += `
