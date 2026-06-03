@@ -45,15 +45,16 @@ async function ejecutarEnvioDeReportes() {
         // Tu consulta SQL avanzada
         const consulta = `
         SELECT
-            con.ContractID AS [Contrato],
-            con.PlacaTruck AS [Placa],
+          con.ContractID AS [Contrato],
+        	con.PlacaTruck AS [Placa],
             con.ContainerNum AS [Contenedor],
-            DATEADD(HOUR, -5, dev.ICTime) AS [Ultimo Reporte],
-            con.LastPositionGps AS [Ultima Posicion],
-            con.LastReportUbica AS [Ultima Validacion],
-            con.LastReportNota AS [Observacion],
-            (CASE dev.Locked WHEN 1 THEN 'Cerrado' ELSE 'Abierto' END) AS [EstadoCandado],
-            con.FKICEmpresa,
+        	rt.DescripcionRuta AS [Ruta],
+        	DATEADD(HOUR, -5, dev.ICTime) AS [Ultimo Reporte],
+        	con.LastPositionGps AS [Ultima Posición],
+        	con.LastReportUbica AS [Ultima Validación],
+            con.LastReportNota AS [Observación],
+        	(CASE dev.Locked WHEN 1 THEN 'Cerrado' ELSE 'Abierto' END) AS [EstadoCandado],
+        	con.FKICEmpresa,
             STUFF((
                 SELECT ';' + cnt.Mail
                 FROM dbo.LokContactos cnt
@@ -62,9 +63,10 @@ async function ejecutarEnvioDeReportes() {
                 FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS CorreosContactos
         FROM
             dbo.LokContractID con INNER JOIN LokDeviceID dev
-            ON con.FKLokDeviceID = dev.DeviceID
+        	ON con.FKLokDeviceID = dev.DeviceID INNER JOIN ICRutas rt ON con.FKICRutas = rt.IdRuta
         WHERE
             con.Active = 1
+            -- Condición: Que exista al menos un contacto con correo para esta empresa
             AND EXISTS (
                 SELECT 1
                 FROM dbo.LokContactos cnt
@@ -130,6 +132,7 @@ async function ejecutarEnvioDeReportes() {
                 filasTablaHtml += `
                     <tr style="border-bottom: 1px solid #eef0f3;">
                         <td style="padding: 12px; font-size: 13px; color: #333333;"><strong>${contrato.Contrato}</strong></td>
+                        <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Ruta || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Placa || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Contenedor || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.EstadoCandado || 'N/D'}</td>
@@ -152,6 +155,7 @@ async function ejecutarEnvioDeReportes() {
                         <thead>
                             <tr style="background-color: #003366; color: #ffffff;">
                                 <th style="padding: 12px; font-size: 13px;">Contrato</th>
+                                <th style="padding: 12px; font-size: 13px;">Ruta</th>
                                 <th style="padding: 12px; font-size: 13px;">Placa</th>
                                 <th style="padding: 12px; font-size: 13px;">Contenedor</th>
                                 <th style="padding: 12px; font-size: 13px;">Estado</th>
