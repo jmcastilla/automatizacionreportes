@@ -54,7 +54,7 @@ async function ejecutarEnvioDeReportes() {
         	DATEADD(HOUR, -5, dev.ICTime) AS [UltimoReporte],
         	con.LastPositionGps AS [UltimaPosicion],
         	con.LastReportUbica AS [UltimaValidacion],
-            con.LastReportNota AS [Observación],
+            con.LastReportNota AS [Observacion],
         	emp.NombreEmpresa AS Empresa,
         	(CASE dev.Locked WHEN 1 THEN 'Cerrado' ELSE 'Abierto' END) AS [EstadoCandado],
         	con.FKICEmpresa,
@@ -142,6 +142,7 @@ async function ejecutarEnvioDeReportes() {
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Contenedor || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.EstadoCandado || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555; max-width: 150px; word-break: break-all;">${contrato.UltimaValidacion || 'N/D'}</td>
+                        <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Observacion || 'N/D'}</td>
                         <td style="padding: 12px; text-align: center;">
                             <a href="${urlConToken}" target="_blank" style="background-color: #003366; color: #ffffff; padding: 6px 12px; text-decoration: none; font-weight: bold; border-radius: 4px; font-size: 11px; display: inline-block;">Ver Reporte</a>
                         </td>
@@ -171,6 +172,7 @@ async function ejecutarEnvioDeReportes() {
                                 <th style="padding: 12px; font-size: 13px;">Contenedor</th>
                                 <th style="padding: 12px; font-size: 13px;">Estado</th>
                                 <th style="padding: 12px; font-size: 13px;">Última Validación</th>
+                                <th style="padding: 12px; font-size: 13px;">Observación</th>
                                 <th style="padding: 12px; font-size: 13px; text-align: center;">Acceso Directo</th>
                             </tr>
                         </thead>
