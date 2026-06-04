@@ -2,7 +2,7 @@ require('dotenv').config();
 const mssql = require('mssql');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
-
+const cron = require('node-cron');
 const SEED_SECRET = process.env.SEED_SECRET;
 
 // =========================================================================
@@ -180,7 +180,7 @@ async function ejecutarEnvioDeReportes() {
             // Enviar el correo al grupo de destinatarios de esta empresa en específico
             await dispatcher.sendMail({
                 from: `"${process.env.MAILERSEND_SENDER_NAME}" <${process.env.MAILERSEND_SENDER_EMAIL}>`,
-                to: `jmcastilla91@gmail.com`, //datosEmpresa.correos, // Nodemailer acepta múltiples correos separados por coma "email1@tld.com, email2@tld.com"
+                to: datosEmpresa.correos, // Nodemailer acepta múltiples correos separados por coma "email1@tld.com, email2@tld.com"
                 subject: `📊 Reporte Consolidado de Monitoreo - Unidades Activas`,
                 html: htmlCorreoCompleto
             });
@@ -196,4 +196,11 @@ async function ejecutarEnvioDeReportes() {
     }
 }
 
+cron.schedule('0 * * * *', () => {
+    ejecutarEnvioDeReportes();
+});
+
+// Opcional: Descomenta la línea de abajo si quieres que se ejecute una vez de inmediato al arrancar el script
 ejecutarEnvioDeReportes();
+
+console.log('⏰ Planificador de reportes Cargotronics inicializado. Ejecutándose cada hora...');
