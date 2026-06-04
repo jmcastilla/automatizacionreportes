@@ -140,7 +140,7 @@ app.post('/api/reportes/consultar-token', async (req, res) => {
         } catch (jwtError) {
             return res.status(403).json({
                 success: false,
-                message: 'El enlace ha expirado (límite de 24 horas superado) o es inválido.'
+                message: 'El enlace ha expirado (límite de 1 hora superado) o es inválido.'
             });
         }
 

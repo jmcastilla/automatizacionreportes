@@ -50,11 +50,12 @@ async function ejecutarEnvioDeReportes() {
           con.ContractID AS [Contrato],
         	con.PlacaTruck AS [Placa],
             con.ContainerNum AS [Contenedor],
-        	rt.DescripcionRuta AS [Ruta],
-        	DATEADD(HOUR, -5, dev.ICTime) AS [Ultimo Reporte],
-        	con.LastPositionGps AS [Ultima Posición],
-        	con.LastReportUbica AS [Ultima Validación],
+        	rt.DescripcionRuta AS Ruta,
+        	DATEADD(HOUR, -5, dev.ICTime) AS [UltimoReporte],
+        	con.LastPositionGps AS [UltimaPosicion],
+        	con.LastReportUbica AS [UltimaValidacion],
             con.LastReportNota AS [Observación],
+        	emp.NombreEmpresa AS Empresa,
         	(CASE dev.Locked WHEN 1 THEN 'Cerrado' ELSE 'Abierto' END) AS [EstadoCandado],
         	con.FKICEmpresa,
             STUFF((
@@ -66,6 +67,7 @@ async function ejecutarEnvioDeReportes() {
         FROM
             dbo.LokContractID con INNER JOIN LokDeviceID dev
         	ON con.FKLokDeviceID = dev.DeviceID INNER JOIN ICRutas rt ON con.FKICRutas = rt.IdRuta
+        	INNER JOIN ICEmpresa emp ON con.FKICEmpresa = emp.IdEmpresa
         WHERE
             con.Active = 1
             -- Condición: Que exista al menos un contacto con correo para esta empresa
@@ -98,6 +100,7 @@ async function ejecutarEnvioDeReportes() {
             // Si es la primera vez que vemos esta empresa, inicializamos su espacio
             if (!empresasAgrupadas[idEmpresa]) {
                 empresasAgrupadas[idEmpresa] = {
+                    nombreEmpresa: contrato.Empresa || 'Cliente',
                     listaContratos: [],
                     // Tomamos la cadena de correos (reemplazamos los puntos y comas por comas si los hay)
                     correos: contrato.CorreosContactos ? contrato.CorreosContactos.replace(/;/g, ', ') : null
@@ -127,7 +130,7 @@ async function ejecutarEnvioDeReportes() {
             for (const contrato of datosEmpresa.listaContratos) {
                 // Generamos el token criptográfico individual de 24 horas por contrato
                 const payload = { contractId: contrato.Contrato, tipo: 'link_24h' };
-                const token24h = jwt.sign(payload, SEED_SECRET, { expiresIn: '24h' });
+                const token24h = jwt.sign(payload, SEED_SECRET, { expiresIn: '1h' });
                 const urlConToken = `https://cargotronics.com/reportes-publicos?publicToken=${token24h}`;
 
                 // Construimos la fila agregando las nuevas columnas de tu consulta SQL
@@ -138,7 +141,7 @@ async function ejecutarEnvioDeReportes() {
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Placa || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Contenedor || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.EstadoCandado || 'N/D'}</td>
-                        <td style="padding: 12px; font-size: 13px; color: #555555; max-width: 150px; word-break: break-all;">${contrato['Ultima Validacion'] || 'N/D'}</td>
+                        <td style="padding: 12px; font-size: 13px; color: #555555; max-width: 150px; word-break: break-all;">${contrato.UltimaValidacion || 'N/D'}</td>
                         <td style="padding: 12px; text-align: center;">
                             <a href="${urlConToken}" target="_blank" style="background-color: #003366; color: #ffffff; padding: 6px 12px; text-decoration: none; font-weight: bold; border-radius: 4px; font-size: 11px; display: inline-block;">Ver Reporte</a>
                         </td>
@@ -149,8 +152,14 @@ async function ejecutarEnvioDeReportes() {
             // Armamos el cuerpo del correo con el diseño responsivo e inline
             const htmlCorreoCompleto = `
                 <div style="font-family: Arial, sans-serif; max-width: 850px; margin: 0 auto; border: 1px solid #eef0f3; padding: 25px; border-radius: 8px;">
+                    <div style="text-align: center; margin-bottom: 25px;">
+                        <img src="https://static.wixstatic.com/media/9a4347_a8dbd9ccfecd4eb2b4239eadc7369c73~mv2.png/v1/fill/w_306,h_74,al_c,lg_1,q_85,enc_avif,quality_auto/logo-logiseguridad2-PNG.png"
+                             alt="Logo Logiseguridad"
+                             width="180"
+                             style="display: inline-block; max-width: 100%; height: auto; border: 0;" />
+                    </div>
                     <h2 style="color: #003366; text-align: center; margin-bottom: 10px;">Consolidado de Monitoreo Disponible</h2>
-                    <p>Estimado Cliente,</p>
+                    <p>Estimado Cliente <strong>${datosEmpresa.nombreEmpresa}</strong>,</p>
                     <p>A continuación, se detalla el listado actualizado de los contenedores y unidades bajo su operación que cuentan con seguimiento logístico activo en tiempo real:</p>
 
                     <table style="width: 100%; border-collapse: collapse; margin: 20px 0; text-align: left;">
