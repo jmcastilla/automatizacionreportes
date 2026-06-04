@@ -15,8 +15,8 @@ const dispatcher = nodemailer.createTransport({
     port: 587,
     secure: false, // TLS
     auth: {
-        user: "MS_EW3h00@offertapp.co",
-        pass: "mssp.P8219Fo.jpzkmgqrpz24059v.r7DhJst",
+        user: "MS_0uDoAi@cargotronics.com",
+        pass: "mssp.USE959X.z86org8vx6klew13.pWXxyKg",
     },
     tls: {
         rejectUnauthorized: false
@@ -182,7 +182,7 @@ async function ejecutarEnvioDeReportes() {
                     </table>
 
                     <p style="background-color: #f4f6f9; padding: 12px; border-radius: 4px; font-size: 13px; border-left: 4px solid #003366; margin-top: 25px;">
-                        ⚠️ <strong>Nota de seguridad:</strong> Cada uno de los enlaces de acceso generados en la tabla es estrictamente confidencial, individual y cuenta con una vigencia de seguridad de <strong>24 horas</strong>.
+                        ⚠️ <strong>Nota de seguridad:</strong> Cada uno de los enlaces de acceso generados en la tabla es estrictamente confidencial, individual y cuenta con una vigencia de seguridad de <strong>1 hora</strong>.
                     </p>
 
                     <hr style="border: 0; border-top: 1px solid #eef0f3; margin: 25px 0;">
