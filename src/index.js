@@ -54,10 +54,11 @@ async function ejecutarEnvioDeReportes() {
         	DATEADD(HOUR, -5, dev.ICTime) AS [UltimoReporte],
         	con.LastPositionGps AS [UltimaPosicion],
         	con.LastReportUbica AS [UltimaValidacion],
-            con.LastReportNota AS [Observacion],
+          con.LastReportNota AS [Observación],
         	emp.NombreEmpresa AS Empresa,
         	(CASE dev.Locked WHEN 1 THEN 'Cerrado' ELSE 'Abierto' END) AS [EstadoCandado],
         	con.FKICEmpresa,
+        	proy.DiferenciaHorariaM, proy.DiferenciaServidor,
             STUFF((
                 SELECT ';' + cnt.Mail
                 FROM dbo.LokContactos cnt
@@ -67,7 +68,8 @@ async function ejecutarEnvioDeReportes() {
         FROM
             dbo.LokContractID con INNER JOIN LokDeviceID dev
         	ON con.FKLokDeviceID = dev.DeviceID INNER JOIN ICRutas rt ON con.FKICRutas = rt.IdRuta
-        	INNER JOIN ICEmpresa emp ON con.FKICEmpresa = emp.IdEmpresa
+        	INNER JOIN ICEmpresa emp ON con.FKICEmpresa = emp.IdEmpresa INNER JOIN LokProyectos proy
+        	ON con.FKLokProyecto = proy.IDProyecto
         WHERE
             con.Active = 1
             -- Condición: Que exista al menos un contacto con correo para esta empresa
@@ -129,7 +131,7 @@ async function ejecutarEnvioDeReportes() {
 
             for (const contrato of datosEmpresa.listaContratos) {
                 // Generamos el token criptográfico individual de 24 horas por contrato
-                const payload = { contractId: contrato.Contrato, tipo: 'link_24h' };
+                const payload = { contractId: contrato.Contrato, diffhorario: contrato.DiferenciaServidor, diffUTC: contrato.DiferenciaServidor, tipo: 'link_24h' };
                 const token24h = jwt.sign(payload, SEED_SECRET, { expiresIn: '1h' });
                 const urlConToken = `https://cargotronics.com/reportes-publicos?publicToken=${token24h}`;
 

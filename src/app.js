@@ -111,6 +111,8 @@ const verificarToken24h = (req, res, next) => {
             // BLINDAJE DE SEGURIDAD: Extraemos el contrato real guardado matemáticamente en el token.
             // De esta forma, el usuario en el frontend NO puede alterar el número de contrato en el body.
             req.contratoIdVerificado = decoded.contractId;
+            req.diffhorario= decoded.diffhorario;
+            req.diffUTC = decoded.diffUTC;
             req.tokenDecoded = decoded;
             next(); // El token es correcto, pasamos al endpoint original
         });
@@ -324,8 +326,8 @@ app.post('/api/reportes/reportes-device', verificarToken24h, async (req, res) =>
         const decoded = req.tokenDecoded;
 
         // Validaciones preventivas por si el token de MailerSend no incluyó desfases horarios originalmente
-        const diffHorario = 0;
-        const diffUTC = 300;
+        const diffHorario = req.diffhorario;
+        const diffUTC = req.diffUTC;
 
         let m = moment();
         m.add(diffHorario, 'minutes');
@@ -403,7 +405,7 @@ app.post('/api/reportes/contrato-unico', verificarToken24h, async (req, res) => 
 
         // Mapeamos los parámetros de forma segura
         request.input('contrato', mssql.VarChar, contrato);
-        request.input('diffHorario', mssql.Int, diffHorario);
+        request.input('diffHorario', mssql.Int, req.DiferenciaHorariaM);
 
         // Tu consulta SQL estructurada de forma limpia con variables parametrizadas (@)
         const consulta = `
