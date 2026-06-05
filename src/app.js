@@ -398,7 +398,7 @@ app.post('/api/reportes/contrato-unico', verificarToken24h, async (req, res) => 
         const diffHorario = 0;
 
         // Conexión al Pool 1 (Base de datos de Contratos)
-        const pool = await poolContratosPromise;
+        const pool = await poolPromise;
         const request = pool.request();
 
         // Mapeamos los parámetros de forma segura
@@ -411,7 +411,7 @@ app.post('/api/reportes/contrato-unico', verificarToken24h, async (req, res) => 
                 c.ContractID,
                 c.FKLokDeviceID,
                 e.NombreEmpresa,
-                c.PlacaTruck, 
+                c.PlacaTruck,
                 CONVERT(varchar, DATEADD(MINUTE, 0, c.FechaHoraInicio), 20) AS fecha,
                 CONCAT(c.LastMsgLat, ',', c.LastMsgLong) AS pos,
                 ISNULL(c.FKTrayecto, 0) AS trayecto,
