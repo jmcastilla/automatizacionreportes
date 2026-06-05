@@ -132,7 +132,7 @@ async function ejecutarEnvioDeReportes() {
             for (const contrato of datosEmpresa.listaContratos) {
                 // Generamos el token criptográfico individual de 24 horas por contrato
                 const payload = { contractId: contrato.Contrato, diffhorario: contrato.DiferenciaServidor, diffUTC: contrato.DiferenciaServidor, tipo: 'link_24h' };
-                const token24h = jwt.sign(payload, SEED_SECRET, { expiresIn: '1h' });
+                const token24h = jwt.sign(payload, SEED_SECRET, { expiresIn: '24h' });
                 const urlConToken = `https://cargotronics.com/reportes-publicos?publicToken=${token24h}`;
 
                 // Construimos la fila agregando las nuevas columnas de tu consulta SQL
@@ -184,7 +184,7 @@ async function ejecutarEnvioDeReportes() {
                     </table>
 
                     <p style="background-color: #f4f6f9; padding: 12px; border-radius: 4px; font-size: 13px; border-left: 4px solid #003366; margin-top: 25px;">
-                        ⚠️ <strong>Nota de seguridad:</strong> Cada uno de los enlaces de acceso generados en la tabla es estrictamente confidencial, individual y cuenta con una vigencia de seguridad de <strong>1 hora</strong>.
+                        ⚠️ <strong>Nota de seguridad:</strong> Cada uno de los enlaces de acceso generados en la tabla es estrictamente confidencial, individual y cuenta con una vigencia de seguridad de <strong>24 horas</strong>.
                     </p>
 
                     <hr style="border: 0; border-top: 1px solid #eef0f3; margin: 25px 0;">
