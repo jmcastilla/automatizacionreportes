@@ -386,6 +386,85 @@ app.post('/api/reportes/reportes-device', verificarToken24h, async (req, res) =>
 });
 
 // =========================================================================
+// 7. ENDPOINT: OBTENER INFORMACIÓN DETALLADA DE UN CONTRATO ÚNICO (Pool 1)
+// =========================================================================
+app.post('/api/reportes/contrato-unico', verificarToken24h, async (req, res) => {
+    try {
+        // Tomamos el contrato validado cruzadamente por el middleware
+        const contrato = req.contratoIdVerificado;
+        const decoded = req.tokenDecoded;
+
+        // Validaciones preventivas por si el token viene del script de MailerSend sin estos campos
+        const diffHorario = 0;
+
+        // Conexión al Pool 1 (Base de datos de Contratos)
+        const pool = await poolContratosPromise;
+        const request = pool.request();
+
+        // Mapeamos los parámetros de forma segura
+        request.input('contrato', mssql.VarChar, contrato);
+        request.input('diffHorario', mssql.Int, diffHorario);
+
+        // Tu consulta SQL estructurada de forma limpia con variables parametrizadas (@)
+        const consulta = `
+            SELECT
+                c.ContractID,
+                c.FKLokDeviceID,
+                e.NombreEmpresa,
+                c.PlacaTruck, 
+                CONVERT(varchar, DATEADD(MINUTE, 0, c.FechaHoraInicio), 20) AS fecha,
+                CONCAT(c.LastMsgLat, ',', c.LastMsgLong) AS pos,
+                ISNULL(c.FKTrayecto, 0) AS trayecto,
+                r.DescripcionRuta,
+                t.DescripcionTrayecto,
+                c.ContainerNum,
+                c.NombreConductor,
+                c.Ref,
+                tp.NombreTranspo,
+                c.MovilConductor,
+                c.PlacaTrailer,
+                CONVERT(varchar, DATEADD(minute, 0, c.FechaHoraInicio), 20) AS fechainicio,
+                ISNULL(
+                    CONVERT(varchar, DATEADD(minute, 0, c.FechaHoraFin), 20),
+                    CONVERT(varchar, DATEADD(minute, @diffHorario, GETDATE()), 20)
+                ) AS fechafin,
+                c.LastMsgLat,
+                c.LastMsgLong,
+                c.Active,
+                d.Locked,
+                ISNULL(t.DistanciaReal, 0) AS DistanciaCompleta,
+                t.Origen,
+                d.FKLokTipoEquipo,
+                c.LastReportNota,
+                c.LastReportUbica,
+                c.LastReportTime,
+                dbo.Tiempo3(
+                    DATEDIFF(
+                        MI,
+                        CASE WHEN primer_cierre IS NULL THEN InicioServicio ELSE primer_cierre END,
+                        CASE WHEN Active = 1 THEN DATEADD(HH, 2, GETDATE()) ELSE CASE WHEN ult_apertura IS NULL THEN FechaHoraFin ELSE ult_apertura END END
+                    )
+                ) AS TiempoServ
+            FROM LokcontractID AS c
+            INNER JOIN LokDeviceID AS d ON d.DeviceID = c.FKLokDeviceID
+            LEFT JOIN ICEmpresa AS e ON e.IdEmpresa = c.FKICEmpresa
+            LEFT JOIN ICRutas AS r ON r.IdRuta = c.FKICRutas
+            LEFT JOIN Trayectos AS t ON c.FKTrayecto = t.IDTrayecto
+            LEFT JOIN ICTransportadora AS tp ON tp.IdTransportadora = c.FKICTransportadora
+            WHERE c.ContractID = @contrato
+        `;
+
+        let resultado = await request.query(consulta);
+
+        return res.json({ success: true, data: resultado.recordsets[0] });
+
+    } catch (err) {
+        console.error('❌ Error en contrato-unico:', err.message);
+        return res.json({ success: false });
+    }
+});
+
+// =========================================================================
 // ENCENDER EL SERVIDOR
 // =========================================================================
 app.listen(PORT, () => {
