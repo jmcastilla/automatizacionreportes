@@ -4,6 +4,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const mssql = require('mssql');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const moment = require('moment');
 const cron = require('node-cron');
 const SEED_SECRET = process.env.SEED_SECRET;
 
@@ -104,7 +105,6 @@ async function ejecutarEnvioDeReportes() {
 
         contratos.forEach(contrato => {
             const idEmpresa = contrato.FKICEmpresa;
-            console.log(contrato.CorreosContactos);
             // Si es la primera vez que vemos esta empresa, inicializamos su espacio
             if (!empresasAgrupadas[idEmpresa]) {
                 empresasAgrupadas[idEmpresa] = {
@@ -206,6 +206,7 @@ async function ejecutarEnvioDeReportes() {
             `;
 
             // Enviar el correo al grupo de destinatarios de esta empresa en específico
+            console.log(datosEmpresa.correos);
             await dispatcher.sendMail({
                 from: `"${process.env.MAILERSEND_SENDER_NAME}" <${process.env.MAILERSEND_SENDER_EMAIL}>`,
                 to: datosEmpresa.correos, // Nodemailer acepta múltiples correos separados por coma "email1@tld.com, email2@tld.com"
