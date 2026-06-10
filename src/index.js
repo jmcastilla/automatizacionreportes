@@ -47,40 +47,45 @@ async function ejecutarEnvioDeReportes() {
         // Tu consulta SQL avanzada
         const consulta = `
         SELECT
-          con.ContractID AS [Contrato],
-        	con.PlacaTruck AS [Placa],
+            con.PlacaTruck AS [Placa],
             con.ContainerNum AS [Contenedor],
-        	rt.DescripcionRuta AS Ruta,
-        	DATEADD(HOUR, -5, dev.ICTime) AS [UltimoReporte],
-        	con.LastPositionGps AS [UltimaPosicion],
-        	con.LastReportUbica AS [UltimaValidacion],
-          con.LastReportNota AS [Observación],
-        	emp.NombreEmpresa AS Empresa,
-        	(CASE dev.Locked WHEN 1 THEN 'Cerrado' ELSE 'Abierto' END) AS [EstadoCandado],
-        	con.FKICEmpresa,
-        	proy.DiferenciaHorariaM, proy.DiferenciaServidor,
+        	  dev.DeviceID AS [Dispositivo],
+            rt.DescripcionRuta AS [Ruta],
+            DATEADD(HOUR, -5, dev.ICTime) AS [UltimoReporte],
+            con.LastPositionGps AS [UltimaPosicion],
+          	(CASE dev.Locked WHEN 1 THEN 'Cerrado' ELSE 'Abierto' END) AS [EstadoCandado],
+          	tipr.TipoReporte AS [EstadoServ],
+            con.LastReportUbica AS [UltimaValidacion],
+            con.LastReportNota AS [Observacion],
+            emp.NombreEmpresa AS [Empresa],
+            con.FKICEmpresa,
+            proy.DiferenciaHorariaM, proy.DiferenciaServidor,
             STUFF((
-                SELECT ';' + cnt.Mail
-                FROM dbo.LokContactos cnt
-                WHERE cnt.FKICEmpresa = con.FKICEmpresa
-                  AND cnt.Autoreporte = 1
-                FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS CorreosContactos
-        FROM
-            dbo.LokContractID con INNER JOIN LokDeviceID dev
-        	ON con.FKLokDeviceID = dev.DeviceID INNER JOIN ICRutas rt ON con.FKICRutas = rt.IdRuta
-        	INNER JOIN ICEmpresa emp ON con.FKICEmpresa = emp.IdEmpresa INNER JOIN LokProyectos proy
-        	ON con.FKLokProyecto = proy.IDProyecto
-        WHERE
-            con.Active = 1
-            -- Condición: Que exista al menos un contacto con correo para esta empresa
-            AND EXISTS (
-                SELECT 1
-                FROM dbo.LokContactos cnt
-                WHERE cnt.FKICEmpresa = con.FKICEmpresa
-                  AND cnt.Autoreporte = 1
-                  AND cnt.Mail IS NOT NULL
-                  AND cnt.Mail <> ''
-            );
+                  -- Añadimos DISTINCT y cambiamos el filtro por un IN
+                  SELECT DISTINCT ';' + cnt.Mail
+                  FROM dbo.LokContactos cnt
+                  WHERE cnt.FKICEmpresa IN (con.FKICEmpresa, con.FKICEmpresaConsulta)
+                    AND cnt.Autoreporte = 1
+                    AND cnt.Mail IS NOT NULL AND cnt.Mail <> ''
+                  FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS CorreosContactos
+          FROM
+              dbo.LokContractID con
+              INNER JOIN LokDeviceID dev ON con.FKLokDeviceID = dev.DeviceID
+              INNER JOIN ICRutas rt ON con.FKICRutas = rt.IdRuta
+              INNER JOIN ICEmpresa emp ON con.FKICEmpresa = emp.IdEmpresa
+              INNER JOIN LokProyectos proy ON con.FKLokProyecto = proy.IDProyecto
+          	LEFT JOIN ICTipoReporte tipr ON TIPR.IdTipoReporte = CON.LastICTipoReporte
+          WHERE
+              con.Active = 1
+              -- Condición: Que exista al menos un contacto con correo en cualquiera de las dos empresas
+              AND EXISTS (
+                  SELECT 1
+                  FROM dbo.LokContactos cnt
+                  WHERE cnt.FKICEmpresa IN (con.FKICEmpresa, con.FKICEmpresaConsulta, con.FKICEmpresaConsulta2, con.FKICEmpresaConsulta3)
+                    AND cnt.Autoreporte = 1
+                    AND cnt.Mail IS NOT NULL
+                    AND cnt.Mail <> ''
+              );
         `;
 
         const resultado = await mssql.query(consulta);
@@ -143,8 +148,10 @@ async function ejecutarEnvioDeReportes() {
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Placa || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Contenedor || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.EstadoCandado || 'N/D'}</td>
+                        <td style="padding: 12px; font-size: 13px; color: #555555; max-width: 150px; word-break: break-all;">${contrato.UltimaPosicion || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555; max-width: 150px; word-break: break-all;">${contrato.UltimaValidacion || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Observacion || 'N/D'}</td>
+                        <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.EstadoServ || 'N/D'}</td>
                         <td style="padding: 12px; text-align: center;">
                             <a href="${urlConToken}" target="_blank" style="background-color: #003366; color: #ffffff; padding: 6px 12px; text-decoration: none; font-weight: bold; border-radius: 4px; font-size: 11px; display: inline-block;">Ver Reporte</a>
                         </td>
@@ -173,8 +180,10 @@ async function ejecutarEnvioDeReportes() {
                                 <th style="padding: 12px; font-size: 13px;">Placa</th>
                                 <th style="padding: 12px; font-size: 13px;">Contenedor</th>
                                 <th style="padding: 12px; font-size: 13px;">Estado</th>
+                                <th style="padding: 12px; font-size: 13px;">Última Posición</th>
                                 <th style="padding: 12px; font-size: 13px;">Última Validación</th>
                                 <th style="padding: 12px; font-size: 13px;">Observación</th>
+                                <th style="padding: 12px; font-size: 13px;">Estado Servicio</th>
                                 <th style="padding: 12px; font-size: 13px; text-align: center;">Acceso Directo</th>
                             </tr>
                         </thead>
