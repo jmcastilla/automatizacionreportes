@@ -111,8 +111,9 @@ async function ejecutarEnvioDeReportes() {
                     nombreEmpresa: contrato.Empresa || 'Cliente',
                     listaContratos: [],
                     // Tomamos la cadena de correos (reemplazamos los puntos y comas por comas si los hay)
-                    correos: contrato.CorreosContactos || null
+                    correos: contrato.CorreosContactos ? contrato.CorreosContactos.split(';').map(correo => correo.trim()) : [];
                 };
+                console.log(empresasAgrupadas[idEmpresa])
             }
 
             // Agregamos el contrato actual al lote de esta empresa
