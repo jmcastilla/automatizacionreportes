@@ -47,6 +47,7 @@ async function ejecutarEnvioDeReportes() {
         // Tu consulta SQL avanzada
         const consulta = `
         SELECT
+            con.ContractID AS [Contrato], 
             con.PlacaTruck AS [Placa],
             con.ContainerNum AS [Contenedor],
         	  dev.DeviceID AS [Dispositivo],
