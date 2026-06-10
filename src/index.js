@@ -164,13 +164,13 @@ async function ejecutarEnvioDeReportes() {
             // Armamos el cuerpo del correo con el diseño responsivo e inline
             const htmlCorreoCompleto = `
                 <div style="font-family: Arial, sans-serif; max-width: 850px; margin: 0 auto; border: 1px solid #eef0f3; padding: 25px; border-radius: 8px;">
-                    <div style="text-align: center; margin-bottom: 25px;">
+                    <div style=" margin-bottom: 25px;">
                         <img src="https://static.wixstatic.com/media/9a4347_a8dbd9ccfecd4eb2b4239eadc7369c73~mv2.png/v1/fill/w_306,h_74,al_c,lg_1,q_85,enc_avif,quality_auto/logo-logiseguridad2-PNG.png"
                              alt="Logo Logiseguridad"
                              width="180"
                              style="display: inline-block; max-width: 100%; height: auto; border: 0;" />
                     </div>
-                    <h2 style="color: #003366; text-align: center; margin-bottom: 10px;">Consolidado de Monitoreo Disponible</h2>
+                    <h2 style="color: #003366; margin-bottom: 10px;">Consolidado de Monitoreo Disponible</h2>
                     <p>Estimado Cliente <strong>${datosEmpresa.nombreEmpresa}</strong>,</p>
                     <p>A continuación, se detalla el listado actualizado de los contenedores y unidades bajo su operación que cuentan con seguimiento logístico activo en tiempo real:</p>
 
@@ -201,7 +201,7 @@ async function ejecutarEnvioDeReportes() {
                     </p>
 
                     <hr style="border: 0; border-top: 1px solid #eef0f3; margin: 25px 0;">
-                    <p style="font-size: 11px; color: #9aa0ac; text-align: center; margin: 0;">Plataforma automatizada de Cargotronics. Por favor no responda a este correo.</p>
+                    <p style="font-size: 11px; color: #9aa0ac; margin: 0;">Plataforma automatizada de Cargotronics. Por favor no responda a este correo.</p>
                 </div>
             `;
 
