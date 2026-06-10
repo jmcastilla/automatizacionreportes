@@ -183,7 +183,7 @@ async function ejecutarEnvioDeReportes() {
                     </div>
                     <h2 style="color: #003366; margin-bottom: 10px;">Consolidado de Monitoreo Disponible</h2>
                     <p>Estimado Cliente <strong>${grupo.nombreEmpresa}</strong>,</p>
-                    <p>A continuación, se detalla el listado actualizado de los contenedores y unidades bajo su operación que cuentan con seguimiento logístico activo en tiempo real:</p>
+                    <p>A continuación, se detalla el listado actualizado de los despachos y unidades bajo su operación que cuentan con seguimiento logístico activo en tiempo real:</p>
 
                     <table style="width: 100%; border-collapse: collapse; margin: 20px 0; text-align: left;">
                         <thead>
