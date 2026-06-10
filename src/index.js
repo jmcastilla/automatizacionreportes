@@ -66,7 +66,7 @@ async function ejecutarEnvioDeReportes() {
                   -- Añadimos DISTINCT y cambiamos el filtro por un IN
                   SELECT DISTINCT ';' + cnt.Mail
                   FROM dbo.LokContactos cnt
-                  WHERE cnt.FKICEmpresa IN (con.FKICEmpresa, con.FKICEmpresaConsulta)
+                  WHERE cnt.FKICEmpresa IN (con.FKICEmpresa, con.FKICEmpresaConsulta, con.FKICEmpresaConsulta2, con.FKICEmpresaConsulta3)
                     AND cnt.Autoreporte = 1
                     AND cnt.Mail IS NOT NULL AND cnt.Mail <> ''
                   FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS CorreosContactos
