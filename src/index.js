@@ -111,7 +111,7 @@ async function ejecutarEnvioDeReportes() {
                     nombreEmpresa: contrato.Empresa || 'Cliente',
                     listaContratos: [],
                     // Tomamos la cadena de correos (reemplazamos los puntos y comas por comas si los hay)
-                    correos: contrato.CorreosContactos ? contrato.CorreosContactos.replace(/;/g, ', ') : null
+                    correos: contrato.CorreosContactos || null
                 };
             }
 
