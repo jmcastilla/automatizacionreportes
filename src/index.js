@@ -163,7 +163,7 @@ async function ejecutarEnvioDeReportes() {
 
             // Armamos el cuerpo del correo con el diseño responsivo e inline
             const htmlCorreoCompleto = `
-                <div style="font-family: Arial, sans-serif; max-width: 850px; margin: 0 auto; border: 1px solid #eef0f3; padding: 25px; border-radius: 8px;">
+                <div style="font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; border: 1px solid #eef0f3; padding: 25px; border-radius: 8px;">
                     <div style=" margin-bottom: 25px;">
                         <img src="https://static.wixstatic.com/media/9a4347_a8dbd9ccfecd4eb2b4239eadc7369c73~mv2.png/v1/fill/w_306,h_74,al_c,lg_1,q_85,enc_avif,quality_auto/logo-logiseguridad2-PNG.png"
                              alt="Logo Logiseguridad"
