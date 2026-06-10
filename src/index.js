@@ -101,48 +101,58 @@ async function ejecutarEnvioDeReportes() {
         // =========================================================================
         // PASO 1: AGRUPAR LOS CONTRATOS POR EMPRESA (FKICEmpresa)
         // =========================================================================
-        const empresasAgrupadas = {};
+        const gruposEnvio = {};
 
         contratos.forEach(contrato => {
             const idEmpresa = contrato.FKICEmpresa;
             // Si es la primera vez que vemos esta empresa, inicializamos su espacio
-            if (!empresasAgrupadas[idEmpresa]) {
-                empresasAgrupadas[idEmpresa] = {
-                    nombreEmpresa: contrato.Empresa || 'Cliente',
-                    listaContratos: [],
-                    // Tomamos la cadena de correos (reemplazamos los puntos y comas por comas si los hay)
-                    correos: contrato.CorreosContactos ? contrato.CorreosContactos.split(';').map(correo => correo.trim()) : []
-                };
-                console.log(empresasAgrupadas[idEmpresa])
+            let listaCorreos = [];
+            if (contrato.CorreosContactos) {
+                listaCorreos = contrato.CorreosContactos
+                    .split(';')
+                    .map(correo => correo.trim().toLowerCase())
+                    .filter(correo => correo !== '')
+                    .sort(); // Ordenamos para que "a;b" y "b;a" generen la misma llave
             }
 
-            // Agregamos el contrato actual al lote de esta empresa
-            empresasAgrupadas[idEmpresa].listaContratos.push(contrato);
+            // Si el contrato no generó correos, saltamos para evitar envíos vacíos
+            if (listaCorreos.length === 0) return;
+
+            // Creamos una llave única combinando el ID de la empresa y la lista de correos unida por comas
+            const llaveGrupo = `${idEmpresa}_[${listaCorreos.join(',')}]`;
+
+            // Si es la primera vez que vemos esta combinación de Empresa + Correos, la inicializamos
+            if (!gruposEnvio[llaveGrupo]) {
+                gruposEnvio[llaveGrupo] = {
+                    idEmpresa: idEmpresa,
+                    nombreEmpresa: contrato.Empresa || 'Cliente',
+                    correos: listaCorreos, // Array limpio de destinatarios
+                    listaContratos: []
+                };
+            }
+
+            // Agregamos el contrato al grupo correspondiente
+            gruposEnvio[llaveGrupo].listaContratos.push(contrato);
         });
 
-        console.log(`Se detectaron ${Object.keys(empresasAgrupadas).length} empresas distintas con reportes pendientes.`);
+        console.log(`Se detectaron ${Object.keys(gruposEnvio).length} empresas distintas con reportes pendientes.`);
 
         // =========================================================================
         // PASO 2: RECORRER CADA EMPRESA Y ENVIAR SU CORREO CORRESPONDIENTE
         // =========================================================================
-        for (const idEmpresa of Object.keys(empresasAgrupadas)) {
-            const datosEmpresa = empresasAgrupadas[idEmpresa];
+        for (const llaveUnique of Object.keys(gruposEnvio)) {
+            const grupo = gruposEnvio[llaveUnique];
 
-            if (!datosEmpresa.correos) {
-                console.log(`⚠️ Empresa ID [${idEmpresa}] no tiene correos válidos configurados. Saltando...`);
-                continue;
-            }
-
-            // Iniciamos la tabla limpia para esta empresa específica
+            // Inicializamos las filas de la tabla para este grupo específico
             let filasTablaHtml = '';
 
-            for (const contrato of datosEmpresa.listaContratos) {
+            for (const contrato of grupo.listaContratos) {
                 // Generamos el token criptográfico individual de 24 horas por contrato
                 const payload = { contractId: contrato.Contrato, diffhorario: contrato.DiferenciaServidor, diffUTC: contrato.DiferenciaServidor, tipo: 'link_24h' };
                 const token24h = jwt.sign(payload, SEED_SECRET, { expiresIn: '24h' });
                 const urlConToken = `https://cargotronics.com/reportes-publicos?publicToken=${token24h}`;
                 const fechaFormateada = moment(contrato.UltimoReporte).format('YYYY-MM-DD HH:mm:ss');
-                // Construimos la fila agregando las nuevas columnas de tu consulta SQL
+
                 filasTablaHtml += `
                     <tr style="border-bottom: 1px solid #eef0f3;">
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Placa || 'N/D'}</td>
@@ -162,7 +172,7 @@ async function ejecutarEnvioDeReportes() {
                 `;
             }
 
-            // Armamos el cuerpo del correo con el diseño responsivo e inline
+            // Cuerpo del correo HTML
             const htmlCorreoCompleto = `
                 <div style="font-family: Arial, sans-serif; max-width: 1250px; margin: 0 auto; border: 1px solid #eef0f3; padding: 25px; border-radius: 8px;">
                     <div style=" margin-bottom: 25px;">
@@ -172,7 +182,7 @@ async function ejecutarEnvioDeReportes() {
                              style="display: inline-block; max-width: 100%; height: auto; border: 0;" />
                     </div>
                     <h2 style="color: #003366; margin-bottom: 10px;">Consolidado de Monitoreo Disponible</h2>
-                    <p>Estimado Cliente <strong>${datosEmpresa.nombreEmpresa}</strong>,</p>
+                    <p>Estimado Cliente <strong>${grupo.nombreEmpresa}</strong>,</p>
                     <p>A continuación, se detalla el listado actualizado de los contenedores y unidades bajo su operación que cuentan con seguimiento logístico activo en tiempo real:</p>
 
                     <table style="width: 100%; border-collapse: collapse; margin: 20px 0; text-align: left;">
@@ -188,7 +198,6 @@ async function ejecutarEnvioDeReportes() {
                                 <th style="padding: 12px; font-size: 13px;">Estado Servicio</th>
                                 <th style="padding: 12px; font-size: 13px;">Última Validación</th>
                                 <th style="padding: 12px; font-size: 13px;">Observación</th>
-
                                 <th style="padding: 12px; font-size: 13px; text-align: center;">Acceso Directo</th>
                             </tr>
                         </thead>
@@ -206,16 +215,15 @@ async function ejecutarEnvioDeReportes() {
                 </div>
             `;
 
-            // Enviar el correo al grupo de destinatarios de esta empresa en específico
-            console.log(datosEmpresa.correos);
+            // Enviar el correo al pool de destinatarios de este grupo exacto
             await dispatcher.sendMail({
                 from: `"${process.env.MAILERSEND_SENDER_NAME}" <${process.env.MAILERSEND_SENDER_EMAIL}>`,
-                to: datosEmpresa.correos, // Nodemailer acepta múltiples correos separados por coma "email1@tld.com, email2@tld.com"
+                to: grupo.correos, // Nodemailer procesará perfectamente el array de strings ['info@h.com', 'juan@h.com']
                 subject: `📊 Reporte Consolidado de Monitoreo - Unidades Activas`,
                 html: htmlCorreoCompleto
             });
 
-            console.log(`✅ Email corporativo enviado con éxito a la empresa [ID: ${idEmpresa}] -> Destinatarios: (${datosEmpresa.correos})`);
+            console.log(`✅ Email enviado con éxito a [${grupo.nombreEmpresa}] -> Destinatarios: (${grupo.correos.join(', ')}) | Contratos adjuntos: ${grupo.listaContratos.length}`);
         }
 
     } catch (errorGlobal) {
