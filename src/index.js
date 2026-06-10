@@ -104,7 +104,7 @@ async function ejecutarEnvioDeReportes() {
 
         contratos.forEach(contrato => {
             const idEmpresa = contrato.FKICEmpresa;
-
+            console.log(contrato.CorreosContactos);
             // Si es la primera vez que vemos esta empresa, inicializamos su espacio
             if (!empresasAgrupadas[idEmpresa]) {
                 empresasAgrupadas[idEmpresa] = {
@@ -140,7 +140,7 @@ async function ejecutarEnvioDeReportes() {
                 const payload = { contractId: contrato.Contrato, diffhorario: contrato.DiferenciaServidor, diffUTC: contrato.DiferenciaServidor, tipo: 'link_24h' };
                 const token24h = jwt.sign(payload, SEED_SECRET, { expiresIn: '24h' });
                 const urlConToken = `https://cargotronics.com/reportes-publicos?publicToken=${token24h}`;
-
+                const fechaFormateada = moment(contrato.UltimoReporte).format('YYYY-MM-DD HH:mm:ss');
                 // Construimos la fila agregando las nuevas columnas de tu consulta SQL
                 filasTablaHtml += `
                     <tr style="border-bottom: 1px solid #eef0f3;">
@@ -148,7 +148,7 @@ async function ejecutarEnvioDeReportes() {
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Contenedor || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Dispositivo || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.Ruta || 'N/D'}</td>
-                        <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.UltimoReporte || 'N/D'}</td>
+                        <td style="padding: 12px; font-size: 13px; color: #555555;">${fechaFormateada || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555; max-width: 150px; word-break: break-all;">${contrato.UltimaPosicion || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.EstadoCandado || 'N/D'}</td>
                         <td style="padding: 12px; font-size: 13px; color: #555555;">${contrato.EstadoServ || 'N/D'}</td>
