@@ -294,7 +294,7 @@ async function enviarReportePorContrato(contractId) {
                 ON tipr.IdTipoReporte = con.LastICTipoReporte
 
             WHERE
-                con.ContractID = '${contractId}'
+                con.ContractID = @contractId
                 AND con.Active = 1;
         `;
 
