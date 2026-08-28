@@ -14,6 +14,7 @@
     "axios": "^1.17.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "hasown": "^2.0.4",
     "jsonwebtoken": "^9.0.3",
     "mailersend": "^3.0.0",
     "mssql": "^12.5.4"
