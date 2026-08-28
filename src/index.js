@@ -234,11 +234,354 @@ async function ejecutarEnvioDeReportes() {
     }
 }
 
+async function enviarReportePorContrato(contractId) {
+    console.log(`=== Enviando reporte del contrato: ${contractId} ===`);
+
+    try {
+        await mssql.connect(sqlConfig);
+
+        const consulta = `
+            SELECT
+                con.ContractID AS [Contrato],
+                con.PlacaTruck AS [Placa],
+                con.ContainerNum AS [Contenedor],
+                dev.DeviceID AS [Dispositivo],
+                rt.DescripcionRuta AS [Ruta],
+                DATEADD(HOUR, -5, dev.ICTime) AS [UltimoReporte],
+                con.LastPositionGps AS [UltimaPosicion],
+                CASE dev.Locked
+                    WHEN 1 THEN 'Cerrado'
+                    ELSE 'Abierto'
+                END AS [EstadoCandado],
+                tipr.TipoReporte AS [EstadoServ],
+                con.LastReportUbica AS [UltimaValidacion],
+                con.LastReportNota AS [Observacion],
+                emp.NombreEmpresa AS [Empresa],
+                con.FKICEmpresa,
+                proy.DiferenciaHorariaM,
+                proy.DiferenciaServidor,
+
+                STUFF((
+                    SELECT DISTINCT ';' + cnt.Mail
+                    FROM dbo.LokContactos cnt
+                    WHERE cnt.FKICEmpresa IN (
+                        con.FKICEmpresa,
+                        con.FKICEmpresaConsulta,
+                        con.FKICEmpresaConsulta2,
+                        con.FKICEmpresaConsulta3
+                    )
+                    AND cnt.ReportTrafico = 1
+                    AND cnt.Mail IS NOT NULL
+                    AND cnt.Mail <> ''
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS CorreosContactos
+
+            FROM dbo.LokContractID con
+
+            INNER JOIN LokDeviceID dev
+                ON con.FKLokDeviceID = dev.DeviceID
+
+            INNER JOIN ICRutas rt
+                ON con.FKICRutas = rt.IdRuta
+
+            INNER JOIN ICEmpresa emp
+                ON con.FKICEmpresa = emp.IdEmpresa
+
+            INNER JOIN LokProyectos proy
+                ON con.FKLokProyecto = proy.IDProyecto
+
+            LEFT JOIN ICTipoReporte tipr
+                ON tipr.IdTipoReporte = con.LastICTipoReporte
+
+            WHERE
+                con.ContractID = '${contractId}'
+                AND con.Active = 1;
+        `;
+
+        const request = new mssql.Request();
+
+        request.input(
+            'contractId',
+            mssql.Int,
+            contractId
+        );
+
+        const resultado = await request.query(consulta);
+
+        // Como estamos buscando por ContractID debe existir máximo un contrato
+        if (resultado.recordset.length === 0) {
+            console.log(`⚠️ Contrato ${contractId} no encontrado o no está activo.`);
+
+            return {
+                ok: false,
+                mensaje: 'Contrato no encontrado o inactivo.'
+            };
+        }
+
+        const contrato = resultado.recordset[0];
+
+        // ============================================================
+        // OBTENER CORREOS
+        // ============================================================
+
+        if (!contrato.CorreosContactos) {
+            console.log(`⚠️ El contrato ${contractId} no tiene correos configurados.`);
+
+            return {
+                ok: false,
+                mensaje: 'El contrato no tiene correos configurados.'
+            };
+        }
+
+        const correos = contrato.CorreosContactos
+            .split(';')
+            .map(correo => correo.trim().toLowerCase())
+            .filter(correo => correo !== '');
+
+        if (correos.length === 0) {
+            return {
+                ok: false,
+                mensaje: 'No existen destinatarios válidos.'
+            };
+        }
+
+        // ============================================================
+        // GENERAR TOKEN 24 HORAS
+        // ============================================================
+
+        const payload = {
+            contractId: contrato.Contrato,
+            diffhorario: contrato.DiferenciaServidor,
+            diffUTC: contrato.DiferenciaServidor,
+            tipo: 'link_24h'
+        };
+
+        const token24h = jwt.sign(
+            payload,
+            SEED_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        const urlConToken =
+            `https://cargotronics.com/reportes-publicos?publicToken=${token24h}`;
+
+        const fechaFormateada = contrato.UltimoReporte
+            ? moment(contrato.UltimoReporte).format('YYYY-MM-DD HH:mm:ss')
+            : 'N/D';
+
+
+        // ============================================================
+        // HTML
+        // ============================================================
+
+        const htmlCorreo = `
+            <div style="
+                font-family: Arial, sans-serif;
+                max-width: 1250px;
+                margin: 0 auto;
+                border: 1px solid #eef0f3;
+                padding: 25px;
+                border-radius: 8px;
+            ">
+
+                <div style="margin-bottom:25px;">
+                    <img
+                        src="https://static.wixstatic.com/media/9a4347_a8dbd9ccfecd4eb2b4239eadc7369c73~mv2.png/v1/fill/w_306,h_74,al_c,lg_1,q_85,enc_avif,quality_auto/logo-logiseguridad2-PNG.png"
+                        alt="Logo Logiseguridad"
+                        width="180"
+                        style="display:inline-block; max-width:100%; height:auto; border:0;"
+                    />
+                </div>
+
+                <h2 style="color:#003366; margin-bottom:10px;">
+                    Reporte de Monitoreo
+                </h2>
+
+                <p>
+                    Estimado Cliente
+                    <strong>${contrato.Empresa || 'Cliente'}</strong>,
+                </p>
+
+                <p>
+                    A continuación se presenta la información actualizada
+                    de la unidad bajo seguimiento logístico.
+                </p>
+
+                <table style="
+                    width:100%;
+                    border-collapse:collapse;
+                    margin:20px 0;
+                    text-align:left;
+                ">
+
+                    <thead>
+                        <tr style="background-color:#003366; color:#ffffff;">
+
+                            <th style="padding:12px;font-size:13px;">Placa</th>
+                            <th style="padding:12px;font-size:13px;">Contenedor</th>
+                            <th style="padding:12px;font-size:13px;">Dispositivo</th>
+                            <th style="padding:12px;font-size:13px;">Ruta</th>
+                            <th style="padding:12px;font-size:13px;">Último Reporte</th>
+                            <th style="padding:12px;font-size:13px;">Última Posición</th>
+                            <th style="padding:12px;font-size:13px;">Estado</th>
+                            <th style="padding:12px;font-size:13px;">Estado Servicio</th>
+                            <th style="padding:12px;font-size:13px;">Última Validación</th>
+                            <th style="padding:12px;font-size:13px;">Observación</th>
+                            <th style="padding:12px;font-size:13px;text-align:center;">
+                                Acceso Directo
+                            </th>
+
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        <tr style="border-bottom:1px solid #eef0f3;">
+
+                            <td style="padding:12px;font-size:13px;">
+                                ${contrato.Placa || 'N/D'}
+                            </td>
+
+                            <td style="padding:12px;font-size:13px;">
+                                ${contrato.Contenedor || 'N/D'}
+                            </td>
+
+                            <td style="padding:12px;font-size:13px;">
+                                ${contrato.Dispositivo || 'N/D'}
+                            </td>
+
+                            <td style="padding:12px;font-size:13px;">
+                                ${contrato.Ruta || 'N/D'}
+                            </td>
+
+                            <td style="padding:12px;font-size:13px;">
+                                ${fechaFormateada}
+                            </td>
+
+                            <td style="padding:12px;font-size:13px;">
+                                ${contrato.UltimaPosicion || 'N/D'}
+                            </td>
+
+                            <td style="padding:12px;font-size:13px;">
+                                ${contrato.EstadoCandado || 'N/D'}
+                            </td>
+
+                            <td style="padding:12px;font-size:13px;">
+                                ${contrato.EstadoServ || 'N/D'}
+                            </td>
+
+                            <td style="padding:12px;font-size:13px;">
+                                ${contrato.UltimaValidacion || 'N/D'}
+                            </td>
+
+                            <td style="padding:12px;font-size:13px;">
+                                ${contrato.Observacion || 'N/D'}
+                            </td>
+
+                            <td style="padding:12px;text-align:center;">
+
+                                <a
+                                    href="${urlConToken}"
+                                    target="_blank"
+                                    style="
+                                        background-color:#003366;
+                                        color:#ffffff;
+                                        padding:6px 12px;
+                                        text-decoration:none;
+                                        font-weight:bold;
+                                        border-radius:4px;
+                                        font-size:11px;
+                                        display:inline-block;
+                                    "
+                                >
+                                    Ver Reporte
+                                </a>
+
+                            </td>
+
+                        </tr>
+
+                    </tbody>
+
+                </table>
+
+                <p style="
+                    background-color:#f4f6f9;
+                    padding:12px;
+                    border-radius:4px;
+                    font-size:13px;
+                    border-left:4px solid #003366;
+                    margin-top:25px;
+                ">
+                    ⚠️ <strong>Nota de seguridad:</strong>
+                    El enlace de acceso es confidencial y tiene una
+                    vigencia de <strong>24 horas</strong>.
+                </p>
+
+                <hr style="
+                    border:0;
+                    border-top:1px solid #eef0f3;
+                    margin:25px 0;
+                ">
+
+                <p style="font-size:11px;color:#9aa0ac;margin:0;">
+                    Plataforma automatizada de Cargotronics.
+                    Por favor no responda a este correo.
+                </p>
+
+            </div>
+        `;
+
+
+        // ============================================================
+        // ENVIAR
+        // ============================================================
+
+        await dispatcher.sendMail({
+            from: `"${process.env.MAILERSEND_SENDER_NAME}" <${process.env.MAILERSEND_SENDER_EMAIL}>`,
+            to: correos,
+            subject: `📊 Reporte de Monitoreo - ${contrato.Placa || contractId}`,
+            html: htmlCorreo
+        });
+
+        console.log(
+            `✅ Contrato ${contractId} enviado a: ${correos.join(', ')}`
+        );
+
+        return {
+            ok: true,
+            contractId,
+            correos
+        };
+
+    } catch (error) {
+
+        console.error(
+            `💥 Error enviando contrato ${contractId}:`,
+            error.message
+        );
+
+        return {
+            ok: false,
+            mensaje: error.message
+        };
+
+    } finally {
+
+        await mssql.close();
+
+    }
+}
+
 cron.schedule('0 * * * *', () => {
     ejecutarEnvioDeReportes();
 });
 
 // Opcional: Descomenta la línea de abajo si quieres que se ejecute una vez de inmediato al arrancar el script
 ejecutarEnvioDeReportes();
+
+module.exports = {
+    enviarReportePorContrato
+};
 
 console.log('⏰ Planificador de reportes Cargotronics inicializado. Ejecutándose cada hora...');

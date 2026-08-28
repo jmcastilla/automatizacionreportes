@@ -10,6 +10,8 @@ const moment = require('moment');
 const app = express();
 const PORT = process.env.PORT || 3005;
 
+const { enviarReportePorContrato } = require('./index');
+
 // Configuración simulada u obtenida de variables para Visual Logistic
 const Configuracion = {
     URL_VISUALLOGISTIC: process.env.URL_VISUALLOGISTIC || "visuallogisticsapp" // Ajusta según tu configuración
@@ -466,6 +468,40 @@ app.post('/api/reportes/contrato-unico', verificarToken24h, async (req, res) => 
     }
 });
 
+app.post('/api/reportes/enviar-contrato', async (req, res) => {
+    try {
+        const { contractId } = req.body;
+
+        if (!contractId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Debe enviar el contractId'
+            });
+        }
+
+        const resultado = await enviarReportePorContrato(contractId);
+
+        if (!resultado.ok) {
+            return res.status(400).json({
+                success: false,
+                message: resultado.mensaje || 'No fue posible enviar el reporte'
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: 'Reporte enviado correctamente'
+        });
+
+    } catch (err) {
+        console.error('❌ Error en enviar-contrato:', err.message);
+
+        return res.status(500).json({
+            success: false,
+            message: 'Error interno enviando el reporte'
+        });
+    }
+});
 // =========================================================================
 // ENCENDER EL SERVIDOR
 // =========================================================================
