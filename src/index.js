@@ -302,7 +302,7 @@ async function enviarReportePorContrato(contractId) {
 
         request.input(
             'contractId',
-            mssql.Int,
+            mssql.VarChar,
             contractId
         );
 
