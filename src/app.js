@@ -20,7 +20,7 @@ const Configuracion = {
 // =========================================================================
 // MIDDLEWARES (Configuraciones de la App)
 // =========================================================================
-const whitelist = ['http://localhost:3000', 'https://cargotronics.com'];
+const whitelist = ['http://localhost:3000', 'https://cargotronics.com', 'https://infocarga-frontend-jwt-theta.vercel.app'];
 
 app.use(cors({
     origin: function (origin, callback) {
